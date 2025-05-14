@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat en Tiempo Real</title>
+</head>
+<body>
+  <h2>Crear / Unirse a una Sala</h2>
+  <input id="username" placeholder="Tu nombre" />
+  <input id="roomName" placeholder="Nombre de la sala" />
+  <button onclick="joinRoom()">Entrar</button>
+
+  <h3>Salas disponibles:</h3>
+  <ul id="roomList"></ul>
+
+  <div id="chat" style="display:none;">
+    <h3>Chat en Sala</h3>
+    <div id="chatBox" style="border: 1px solid #ccc; height: 200px; overflow-y: auto;"></div>
+    <input id="inputMsg" placeholder="Mensaje..." />
+    <button onclick="sendMessage()">Enviar</button>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    let currentRoom = '';
+
+    async function joinRoom() {
+      const room = document.getElementById('roomName').value;
+      const username = document.getElementById('username').value;
+      if (!room || !username) return alert('Ingresa nombre y sala');
+
+      currentRoom = room;
+      document.getElementById('chat').style.display = 'block';
+      clearMessages();
+
+      socket.emit('joinRoom', room, username);
+
+      socket.off('chatMessage');
+      socket.on('chatMessage', (data) => {
+        addMessage(`${data.user}: ${data.message}`);
+      });
+
+      socket.off('notification');
+      socket.on('notification', (msg) => {
+        addMessage(`🔔 ${msg}`);
+      });
+
+      // Escuchar el historial de chat
+      socket.off('chatHistory');
+      socket.on('chatHistory', (messages) => {
+        messages.forEach(msg => {
+          addMessage(`${msg.user}: ${msg.message}`);
+        });
+      });
+
+      addMessage(`Te uniste a la sala: ${room}`);
+    }
+
+    function sendMessage() {
+      const message = document.getElementById('inputMsg').value;
+      const user = document.getElementById('username').value;
+      socket.emit('chatMessage', { room: currentRoom, user, message });
+      document.getElementById('inputMsg').value = '';
+    }
+
+    function addMessage(msg) {
+      const box = document.getElementById('chatBox');
+      const p = document.createElement('p');
+      p.textContent = msg;
+      box.appendChild(p);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function clearMessages() {
+      const box = document.getElementById('chatBox');
+      box.innerHTML = '';
+    }
+
+    async function fetchRooms() {
+      const res = await fetch('/rooms');
+      const rooms = await res.json();
+      const list = document.getElementById('roomList');
+      list.innerHTML = '';
+      rooms.forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = r.name;
+        list.appendChild(li);
+      });
+    }
+
+    fetchRooms();
+  </script>
+</body>
+</html>
