@@ -3,27 +3,58 @@
 <head>
   <meta charset="UTF-8" />
   <title>Chat en Tiempo Real</title>
+  <link rel="stylesheet" href="https://unpkg.com/primeflex@3.3.1/primeflex.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/primeicons/primeicons.css">
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+    }
+    #chatBox {
+      border: 1px solid #ccc;
+      height: 250px;
+      overflow-y: auto;
+      padding: 1rem;
+      background: #f4f4f4;
+      border-radius: 6px;
+    }
+    #chatBox p {
+      margin: 0.5rem 0;
+    }
+  </style>
 </head>
 <body>
-  <h2>Crear / Unirse a una Sala</h2>
-  <input id="username" placeholder="Tu nombre" />
-  <input id="roomName" placeholder="Nombre de la sala" />
-  <button onclick="joinRoom()">Entrar</button>
+  <h2 class="mb-3">💬 Chat en Tiempo Real</h2>
+
+  <div class="flex flex-column gap-2 mb-3">
+    <input id="username" class="p-inputtext p-component" placeholder="Tu nombre" />
+    <input id="roomName" class="p-inputtext p-component" placeholder="Nombre de la sala" />
+    <button class="p-button p-component" onclick="joinRoom()">Entrar</button>
+  </div>
 
   <h3>Salas disponibles:</h3>
-  <ul id="roomList"></ul>
+  <ul id="roomList" class="mb-3"></ul>
 
   <div id="chat" style="display:none;">
     <h3>Chat en Sala</h3>
-    <div id="chatBox" style="border: 1px solid #ccc; height: 200px; overflow-y: auto;"></div>
-    <input id="inputMsg" placeholder="Mensaje..." />
-    <button onclick="sendMessage()">Enviar</button>
+    <div id="chatBox" class="mb-2"></div>
+    <div class="flex gap-2">
+      <input id="inputMsg" class="p-inputtext p-component flex-1" placeholder="Mensaje..." />
+      <button class="p-button p-component" onclick="sendMessage()">Enviar</button>
+    </div>
   </div>
+
+  <audio id="notifSound" src="https://notificationsounds.com/storage/sounds/file-sounds-1154-pristine.mp3" preload="auto"></audio>
 
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script>
     const socket = io();
     let currentRoom = '';
+
+    // Pedir permiso para notificaciones
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
 
     async function joinRoom() {
       const room = document.getElementById('roomName').value;
@@ -39,6 +70,8 @@
       socket.off('chatMessage');
       socket.on('chatMessage', (data) => {
         addMessage(`${data.user}: ${data.message}`);
+        playNotificationSound();
+        showNotification(data.user, data.message);
       });
 
       socket.off('notification');
@@ -46,20 +79,20 @@
         addMessage(`🔔 ${msg}`);
       });
 
-      // Escuchar el historial de chat
-      socket.off('chatHistory');
-      socket.on('chatHistory', (messages) => {
+      socket.off('chat-history');
+      socket.on('chat-history', (messages) => {
         messages.forEach(msg => {
           addMessage(`${msg.user}: ${msg.message}`);
         });
       });
 
-      addMessage(`Te uniste a la sala: ${room}`);
+      addMessage(`🟢 Te uniste a la sala: ${room}`);
     }
 
     function sendMessage() {
       const message = document.getElementById('inputMsg').value;
       const user = document.getElementById('username').value;
+      if (!message.trim()) return;
       socket.emit('chatMessage', { room: currentRoom, user, message });
       document.getElementById('inputMsg').value = '';
     }
@@ -73,20 +106,38 @@
     }
 
     function clearMessages() {
-      const box = document.getElementById('chatBox');
-      box.innerHTML = '';
+      document.getElementById('chatBox').innerHTML = '';
     }
 
     async function fetchRooms() {
-      const res = await fetch('/rooms');
-      const rooms = await res.json();
-      const list = document.getElementById('roomList');
-      list.innerHTML = '';
-      rooms.forEach(r => {
-        const li = document.createElement('li');
-        li.textContent = r.name;
-        list.appendChild(li);
-      });
+      try {
+        const res = await fetch('/rooms');
+        const rooms = await res.json();
+        const list = document.getElementById('roomList');
+        list.innerHTML = '';
+        rooms.forEach(r => {
+          const li = document.createElement('li');
+          li.textContent = r.name;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        console.error('Error al cargar salas:', err);
+      }
+    }
+
+    function showNotification(user, message) {
+      if (Notification.permission === 'granted') {
+        new Notification(`💬 ${user}`, {
+          body: message,
+          icon: 'https://cdn-icons-png.flaticon.com/512/2331/2331942.png'
+        });
+      }
+    }
+
+    function playNotificationSound() {
+      const sound = document.getElementById('notifSound');
+      sound.currentTime = 0;
+      sound.play().catch(() => {});
     }
 
     fetchRooms();
